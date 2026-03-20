@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Поиск - VAT</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="data.js"></script>
+    <script type="module" src="firebase-config.js"></script>
+    <style>
+        .search-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .search-query {
+            color: #001a8c;
+            font-weight: bold;
+        }
+        .search-section {
+            margin: 30px 0;
+            border-bottom: 2px solid #320063;
+            padding-bottom: 10px;
+        }
+        .result-item {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 15px;
+            background: white;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            text-decoration: none;
+            color: inherit;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            transition: all 0.3s;
+        }
+        .result-item:hover {
+            transform: translateX(5px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            background: #f5f5f5;
+        }
+        .result-image {
+            width: 60px;
+            height: 60px;
+            border-radius: 10px;
+            object-fit: cover;
+        }
+        .result-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #001a8c;
+        }
+        .result-type {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        .type-title {
+            background: #001a8c;
+            color: white;
+        }
+        .type-voice {
+            background: #320063;
+            color: white;
+        }
+        .loading {
+            text-align: center;
+            padding: 50px;
+        }
+        .search-stats {
+            text-align: center;
+            margin: 20px 0;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+    <div class="navigation-buttons">
+        <a href="index.html" class="nav-button" style="background: linear-gradient(135deg, #001a8c 0%, #320063 100%);">
+            🏠 Главная
+        </a>
+        <a href="titles.html" class="nav-button" style="background: linear-gradient(135deg, #001a8c 0%, #320063 100%);">
+            🎦 Тайтлы
+        </a>
+        <a href="sostav.html" class="nav-button" style="background: linear-gradient(135deg, #001a8c 0%, #320063 100%);">
+            🎭 Состав
+        </a>
+    </div>
+    <!-- ПОИСКОВАЯ СТРОКА -->
+    <div style="margin-top: 15px; display: flex; justify-content: center;">
+        <form action="search.html" method="get" style="display: flex; width: 100%; max-width: 500px; gap: 10px;">
+            <input type="text" name="q" placeholder="🔍 Поиск по тайтлам и дабберам..." 
+                   style="flex: 1; padding: 12px 20px; border: 2px solid #001a8c; border-radius: 50px; font-size: 16px; outline: none;"
+                   required>
+            <button type="submit" style="background: linear-gradient(135deg, #001a8c 0%, #320063 100%); color: white; border: none; padding: 0 25px; border-radius: 50px; font-weight: bold; cursor: pointer; transition: all 0.3s;">
+                Найти
+            </button>
+        </form>
+    </div>
+</div>
+
+
+<script>
+    setTimeout(() => {
+        const user = window.firebase?.getCurrentUser();
+        const btn = document.getElementById('navAuthBtn');
+        if (user && btn) {
+            btn.textContent = `👤 ${user.displayName || 'Профиль'}`;
+            btn.href = 'profile.html';
+        }
+    }, 1000);
+</script>
+    </div>
+
+    <div class="container">
+        <div class="header">
+            <img src="logo.jpg" class="avatar" width="240" height="240" onerror="this.src='https://via.placeholder.com/240/001a8c/ffffff?text=VAT'">
+            <hr>
+        </div>
+        
+        <div class="content-box">
+            <div class="search-header">
+                <h1 class="title">Результаты поиска</h1>
+                <div id="searchQuery" class="search-query"></div>
+                <div id="resultsCount" class="search-stats"></div>
+            </div>
+            
+            <hr>
+            
+            <div id="results" class="loading">Поиск...</div>
+        </div>
+    </div>
+
+    <script type="module">
+        import firebase from './firebase-config.js';
+        
+        function getQuery() {
+            return new URLSearchParams(window.location.search).get('q') || '';
+        }
+        
+        async function performSearch() {
+            const query = getQuery();
+            const queryDisplay = document.getElementById('searchQuery');
+            const countDisplay = document.getElementById('resultsCount');
+            const resultsDiv = document.getElementById('results');
+            
+            queryDisplay.innerHTML = `По запросу: <span class="search-query">"${query}"</span>`;
+            
+            if (!query) {
+                resultsDiv.innerHTML = '<p>Введите поисковый запрос</p>';
+                return;
+            }
+            
+            // Ждем загрузки данных
+            setTimeout(async () => {
+                if (!window.titlesDatabase || !window.voicesDatabase) {
+                    resultsDiv.innerHTML = '<p>Загрузка данных...</p>';
+                    setTimeout(performSearch, 500);
+                    return;
+                }
+                
+                const q = query.toLowerCase().trim();
+                
+                // Поиск по тайтлам
+                const titles = window.titlesDatabase.filter(t => 
+                    t.name.toLowerCase().includes(q) || 
+                    (t.nameEng && t.nameEng.toLowerCase().includes(q))
+                );
+                
+                // Поиск по дабберам
+                const voices = window.voicesDatabase.filter(v => 
+                    v.name.toLowerCase().includes(q)
+                );
+                
+                countDisplay.textContent = `Найдено: ${titles.length + voices.length}`;
+                
+                let html = '';
+                
+                if (titles.length > 0) {
+                    html += '<h2 class="search-section">🎬 Тайтлы</h2>';
+                    titles.forEach(t => {
+                        html += `
+                            <a href="title.html?id=${t.id}" class="result-item">
+                                <img src="${t.image}" class="result-image" onerror="this.src='https://via.placeholder.com/60/001a8c/ffffff?text=?'">
+                                <div>
+                                    <div class="result-title">${t.name}</div>
+                                    <span class="result-type type-title">${t.type || 'Аниме'}</span>
+                                </div>
+                            </a>
+                        `;
+                    });
+                }
+                
+                if (voices.length > 0) {
+                    html += '<h2 class="search-section">🎭 Дабберы</h2>';
+                    voices.forEach(v => {
+                        html += `
+                            <a href="voice.html?id=${v.id}" class="result-item">
+                                <img src="${v.image}" class="result-image" onerror="this.src='https://via.placeholder.com/60/320063/ffffff?text=?'">
+                                <div>
+                                    <div class="result-title">${v.name}</div>
+                                    <span class="result-type type-voice">${v.status || 'Даббер'}</span>
+                                </div>
+                            </a>
+                        `;
+                    });
+                }
+                
+                if (titles.length === 0 && voices.length === 0) {
+                    html = '<p>Ничего не найдено</p>';
+                }
+                
+                resultsDiv.innerHTML = html;
+            }, 500);
+        }
+        
+        // Обновляем кнопку авторизации
+        setTimeout(() => {
+            const user = firebase.getCurrentUser();
+            const btn = document.getElementById('authBtn');
+            if (user && btn) {
+                btn.textContent = `👤 ${user.displayName || 'Профиль'}`;
+                btn.href = 'profile.html';
+            }
+        }, 1000);
+        
+        performSearch();
+    </script>
+</body>
+</html>
